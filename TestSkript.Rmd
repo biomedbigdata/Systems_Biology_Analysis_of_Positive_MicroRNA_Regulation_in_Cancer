@@ -1,0 +1,263 @@
+---
+title: "TestSkript"
+author: "Miriam Hilger"
+date: "31 10 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r libraries}
+library(matrixStats)
+library(SPONGE)
+library(corrplot)
+library(dplyr)
+library(plyr)
+library(tools)
+#if dplyr doesn't work:
+#install.packages("rlang", type = "source")
+library(ggplot2)
+library(data.table)
+library(biomaRt)
+library(mirbase.db)
+library(miRBaseConverter)
+library(targetscan.Hs.eg.db)
+library(foreach)
+library(doParallel)
+
+psnice(15) 
+cl <- makeForkCluster(15)
+registerDoParallel(cl)
+```
+
+
+erstelle 2 Dataframes
+- H19
+- mir675
+
+```{r}
+
+h19 <- getGeneMIrnaIDsPositive1[which(getGeneMIrnaIDsPositive1$geneID == c("ENSG00000130600")), ]
+h19Mir675 <- h19[which(h19$mirna == c("MIMAT0006790")), ]
+
+anderesGene <- getGeneMIrnaIDsPositive1[which(getGeneMIrnaIDsPositive1$geneID == c("ENSG00000000971")),]
+andereMIRNA <- anderesGene[which(anderesGene$mirna == c("MIMAT0005909")),]
+
+```
+
+
+Hole mit Hilfe von biomaRt die ensembl_gene_id, start- und endposition und strand Informationen der Gene.
+-> Das gleiche für die miRNAs 
+
+```{r}
+#get the start- and endpositions from all gene-ids
+mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+listFilters(mart)
+listAttributes(mart)
+geneH19 <- h19["geneID"]
+
+h19Position <- getBM(filters="ensembl_gene_id",
+  attributes=c("ensembl_gene_id", "chromosome_name", "strand", "start_position", "end_position"),
+  values=geneH19,
+  mart=mart)
+
+#conversion miRBase Accession and miRNA Name which is needed to get the start- and endpositions
+mir675$TargetName <- c("hsa-mir-675")
+
+
+#get the start- and endpositions from all mirna-ids
+mir675Position <- getBM(attributes = c('mirbase_id',
+                                      'chromosome_name',
+                                       'strand',
+                                       'start_position',
+                                       'end_position'),
+                        filters = 'mirbase_id', 
+                        values = mir675["TargetName"],
+                        mart = mart)
+
+h19Position$chromosome_name <- as.character(h19Position$chromosome_name)
+
+
+```
+
+
+```{r}
+
+getMiRNAid <- miRNATable[which(as.character(miRNATable$Mature1_Acc) %in% getGeneMIrnaIDsPositive1$mirna), c("ID", "Mature1_Acc")]
+
+getAccNb <- miRNATable[which(as.character(miRNATable$ID) %in% OverlapsUnique$mirbase_id),c("ID","Mature1_Acc","Mature2_Acc")]
+```
+
+
+
+```{r}
+#get the start- and endpositions from all gene-ids
+mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+listFilters(mart)
+listAttributes(mart)
+anderes <- anderesGene["geneID"]
+
+anderePosition <- getBM(filters="ensembl_gene_id",
+  attributes=c("ensembl_gene_id", "chromosome_name", "strand", "start_position", "end_position"),
+  values=anderes,
+  mart=mart)
+
+#conversion miRBase Accession and miRNA Name which is needed to get the start- and endpositions
+
+microRNA = miRNA_AccessionToName(andereMIRNA$mirna)
+
+#get the start- and endpositions from all mirna-ids
+andMIPosition <- getBM(attributes = c('mirbase_id',
+                                      'chromosome_name',
+                                       'strand',
+                                       'start_position',
+                                       'end_position'),
+                        filters = 'mirbase_id', 
+                        values = microRNA["TargetName"],
+                        mart = mart)
+
+
+
+h19Position <- lapply(h19Position, na.omit)
+mir675Position <- lapply(mir675Position, na.omit)
+```
+
+
+Test mit den IDs aus miRNATable 
+```{r}
+#get the start- and endpositions from all gene-ids
+mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+gene_ids <- getGeneMIrnaIDsPositive1["geneID"]
+
+anderePosition <- getBM(filters="ensembl_gene_id",
+  attributes=c("ensembl_gene_id", "chromosome_name", "strand", "start_position", "end_position"),
+  values=gene_ids,
+  mart=mart)
+
+#conversion miRBase Accession and miRNA Name which is needed to get the start- and endpositions
+
+
+#get the start- and endpositions from all mirna-ids
+microRNAPosition <- getBM(attributes = c('mirbase_id',
+                                      'chromosome_name',
+                                       'strand',
+                                       'start_position',
+                                       'end_position'),
+                        filters = 'mirbase_id', 
+                        values = getMiRNAid["ID"],
+                        mart = mart)
+
+```
+
+Finde Überlappungen zwischen Genen und miRNAs und filtere diese heraus -> da gleicher Genlokus = offensichtliche Korrelation
+Interessant sind die miRNAs nahe der Bindestellen von Genen.
+
+```{r}
+names(h19Position)<- c("ensembl_gene_id", "chromosome_name", "strand", "start","end")
+names(mir675Position) <- c("mirbase_id","chromosome_name", "strand", "start","end")
+
+#foverlaps requires data.tables as input -> without entrez_ID
+require(data.table)
+setDT(h19Position)
+setDT(mir675Position)
+
+#with entrez_ID
+#genePositionsDF <- data.frame(lapply(genePositions, "length<-", max(lengths(genePositions))))
+#mirnaPositionsDF <- data.frame(lapply(mirnaPositions, "length<-", max(lengths(mirnaPositions))))
+#setDT(genePositionsDF)
+#setDT(mirnaPositionsDF)
+
+setkey(h19Position, chromosome_name, strand, start, end)
+setkey(mir675Position, chromosome_name, strand, start, end)
+
+OverlapsH19Mir675 <- foverlaps(mir675Position, h19Position, by.x = c("chromosome_name", "strand","start", "end"), by.y = c("chromosome_name", "strand" ,"start", "end"), nomatch = 0, type = "within")
+
+
+#convert the mirbase_id to mature accesstion number, to remove alle Overlaps from getGeneMirnaIDspositive1
+#miRNATable was downloaded from mirbase.org
+getAccNb <- miRNATable[which(as.character(miRNATable$ID) %in% OverlapsUnique$mirbase_id),c("ID","Mature1_Acc","Mature2_Acc")]
+
+#join the mature accession nr from getAccNb to the Overlaps
+OverlapsUniqueDT <- data.table(OverlapsUnique, key = "mirbase_id")
+getAccNbDT <- data.table(getAccNb, key = "ID")
+OverlapsGeneIDaccNr <- OverlapsUniqueDT[getAccNbDT]
+
+names(OverlapsGeneIDaccNr)[2] <-  "geneID"
+names(OverlapsGeneIDaccNr)[8] <-  "mirna"
+OverlapsGeneIDaccNr <- data.frame(OverlapsGeneIDaccNr)
+OverlapsGeneIDaccNr[] <- lapply(OverlapsGeneIDaccNr, as.character)
+
+
+#remove these gene-mirna pairs from getGeneMIrnaIDspositive1
+geneMIrnaIDsPositiveFinal <- anti_join(getGeneMIrnaIDsPositive1,OverlapsGeneIDaccNr , by = c("geneID", "mirna"))
+
+
+
+```
+
+
+
+## TODO: Check Expressionswerte
+
+```{r}
+#get gene Expression values of the strongest pos correlations
+# -> outliers and top5highestMiRNAratePerGene
+
+cancer_gene_expr_geneIDwithoutPoint <- cancer_gene_expr
+colnames(cancer_gene_expr_geneIDwithoutPoint) <- sub("\\..*", "", names(cancer_gene_expr_geneIDwithoutPoint[1,]))
+
+#nehme geneID, suche in cancer_..._Point danach und ziehe Expr.werte raus, mache für jede geneID einen eigenen Boxplot
+#save geneIDs (unique) for plotting the expression values
+geneIDoutliers <- unique(outliers$geneID)
+
+for (i in geneIDoutliers) {
+    expression <- cancer_gene_expr_geneIDwithoutPoint[,i]
+    expression <- data.frame(expression)
+    
+    #add column with name "expression value"
+    expression[, "expressionValue"] <- c("expressionValue")
+    
+    #every gene gets an own dataframe object with the name "outlier" + geneID
+    lapply(paste0("outlier", i), expression)
+    
+    #plot the expression value
+    boxplot <- ggplot(expression, aes(x = expressionValue, y = expression), ylim = c(0, 50)) + geom_boxplot()
+    assign(paste0("boxplot", i), boxplot)
+    save(boxplot, file =(paste0("boxplot", i, ".pdf")))
+    }
+
+```
+
+#get Binding Sites of the gene-miRNA-pairs
+
+1) run skript process_mir_families.R
+2) run skript process_mircode.R
+3) remove ".x" from the gene IDs -> add column "gene_id_noPoints"
+4) join miRNA-gene pairs with mircode_df
+
+```{r}
+
+mircode_df_noPoints <- sub("\\..*", "", mircode_df$gene_id)
+mircode_df$geneID <- mircode_df_noPoints
+
+names(mircode_df)[1] <-  "mirna"
+
+#join
+getGeneMIrnaBindingSites <- left_join(geneMIrnaIDsPositiveFinal, mircode_df , by = c("mirna", "geneID"))
+
+getGeneMIrnaBindingSites$char <- "numberBindingsites"
+
+```
+
+
+
+
+
+```{r}
+stopCluster(cl)
+```
+

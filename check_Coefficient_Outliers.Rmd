@@ -1,0 +1,118 @@
+---
+title: "check_Coefficient_Outliers"
+author: "Miriam Hilger"
+date: "15 11 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(matrixStats)
+library(SPONGE)
+library(corrplot)
+library(dplyr)
+library(plyr)
+library(ggpubr) #for ggscatter
+library(tools)
+#if dplyr doesn't work:
+#install.packages("rlang", type = "source")
+library(ggplot2)
+library(data.table)
+library(biomaRt)
+library(mirbase.db)
+library(miRBaseConverter)
+library(targetscan.Hs.eg.db)
+library(foreach)
+library(doParallel)
+
+psnice(15) 
+cl <- makeForkCluster(15)
+registerDoParallel(cl)
+```
+
+
+##save every gene-miRNA pair of the outliers in the dataframe "outliers" in an own dataframe
+```{r}
+#get gene Expression values of the strongest pos correlations
+#cancer_gene_expr_geneIDwithoutPoint <- cancer_gene_expr
+#colnames(cancer_gene_expr_geneIDwithoutPoint) <- sub("\\..*", "", names(cancer_gene_expr_geneIDwithoutPoint[1,]))
+
+#outliers$number <- c(1, 2, 3, 4, 5, 6, 7)
+
+#dataframe for gene-miRNA pair: ENSG00000143195/MIMAT0004563; filled with expression values
+expression1 <- cancer_gene_expr_geneIDwithoutPoint[,c("ENSG00000143195")]
+expression1 <- data.frame(expression1)
+colnames(expression1)[1] <- c("ENSG00000143195")
+expression1$MIMAT0004563 <-  cancer_mir_expr[, c("MIMAT0004563")]
+
+
+#df for pair ENSG00000151553/MIMAT0004563
+expression2 <- cancer_gene_expr_geneIDwithoutPoint[,c("ENSG00000151553")]
+expression2 <- data.frame(expression2)
+colnames(expression2)[1] <- c("ENSG00000151553")
+expression2$MIMAT0004563 <- cancer_mir_expr[, c("MIMAT0004563")]
+
+
+#df for pair ENSG00000203585/MIMAT0004563
+expression3 <- cancer_gene_expr_geneIDwithoutPoint[,c("ENSG00000203585")]
+expression3 <- data.frame(expression3)
+colnames(expression3)[1] <- c("ENSG00000203585")
+expression3$MIMAT0004563 <- cancer_mir_expr[,c("MIMAT0004563")]
+
+
+#df 4 for pair ENSG00000157778/MIMAT0004773
+expression4 <- cancer_gene_expr_geneIDwithoutPoint[, c("ENSG00000157778")]
+expression4 <- data.frame(expression4)
+colnames(expression4)[1] <- c("ENSG00000157778")
+expression4$MIMAT0004773 <- cancer_mir_expr[, c("MIMAT0004773")]
+
+
+#df 5 for pair ENSG00000272821/MIMAT0004773
+expression5 <- cancer_gene_expr_geneIDwithoutPoint[, c("ENSG00000272821")]
+expression5 <- data.frame(expression5)
+colnames(expression5)[1] <- c("ENSG00000272821")
+expression5$MIMAT0004773 <- cancer_mir_expr[, c("MIMAT0004773")]
+
+
+#df 6 for pair ENSG00000281415/MIMAT0004563
+expression6 <- cancer_gene_expr_geneIDwithoutPoint[, c("ENSG00000281415")]
+expression6 <- data.frame(expression6)
+colnames(expression6)[1] <- c("ENSG00000281415")
+expression6$MIMAT0004563 <- cancer_mir_expr[, c("MIMAT0004563")]
+
+
+#df 7 for pair ENSG00000263020/MIMAT0004773
+expression7 <- cancer_gene_expr_geneIDwithoutPoint[, c("ENSG00000263020")]
+expression7 <- data.frame(expression7)
+colnames(expression7)[1] <- c("ENSG00000263020")
+expression7$MIMAT0004773 <- cancer_mir_expr[, c("MIMAT0004773")]
+
+
+```
+
+
+##plot the expression value of a gene-miRNA pair of the coefficient outliers ( > 1)
+
+```{r}
+
+plotExpression1 <- ggscatter(expression1, x = "ENSG00000143195", y= "MIMAT0004563", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression2 <- ggscatter(expression2, x = "ENSG00000151553", y= "MIMAT0004563", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression3 <- ggscatter(expression3, x = "ENSG00000203585", y= "MIMAT0004563", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression4 <- ggscatter(expression4, x = "ENSG00000157778", y= "MIMAT0004773", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression5 <- ggscatter(expression5, x = "ENSG00000272821", y= "MIMAT0004773", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression6 <- ggscatter(expression6, x = "ENSG00000281415", y= "MIMAT0004563", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression7 <- ggscatter(expression7, x = "ENSG00000263020", y= "MIMAT0004773", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+
+```
+
+
+
+
+
+
+```{r}
+stopCluster(cl)
+```

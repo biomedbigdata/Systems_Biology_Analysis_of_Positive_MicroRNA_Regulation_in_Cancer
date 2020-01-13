@@ -1,0 +1,54 @@
+---
+title: "mirWalk"
+author: "Miriam Hilger"
+date: "16 11 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+hole ID von joinMirna.ID1.ID2 von Ausreißer MIMAT0004563 = mir1 und MIMAT0004773 = mir2
+
+Ausreißer: ENSG00000143195 (ILDR2)	MIMAT0004563
+           ENSG00000151553 (FAM160B1)	MIMAT0004563
+           ENSG00000203585 (LINC02408)	MIMAT0004563
+           ENSG00000281415 ()	MIMAT0004563
+           
+           ENSG00000157778 (PSMG3)	MIMAT0004773
+           ENSG00000272821 ()	MIMAT0004773
+           ENSG00000263020 ()	MIMAT0004773
+           
+          (couldn´t find all genesymbols)
+
+```{r}
+#### MIMAT0004563
+
+IDofMIMAT0004563 <-  miRNATable %>% filter(Mature2_Acc == c("MIMAT0004563"))
+
+miRWalk_MIMAT0004563 <- miRWalk_miRNA_Targets_mimat0004563[which(miRWalk_miRNA_Targets_mimat0004563$mirnaid %in% IDofMIMAT0004563$Mature2_ID), c("mirnaid", "genesymbol", "bindingp", "energy", "seed", "number_of_pairings")]
+
+#get the gene-miRNA outliers with their miRWalk bindingsite information
+miRWalk_mir1_ENSG00000143195 <- miRWalk_MIMAT0004563[which(miRWalk_MIMAT0004563$genesymbol == c("ILDR2")), c("mirnaid", "genesymbol", "bindingp", "energy", "seed", "number_of_pairings")]
+  
+miRWalk_mir1_ENSG00000151553 <- miRWalk_MIMAT0004563[which(miRWalk_MIMAT0004563$genesymbol == c("FAM160B1")), c("mirnaid", "genesymbol", "bindingp", "energy", "seed", "number_of_pairings")]
+  
+miRWalk_mir1_ENSG00000203585 <- miRWalk_MIMAT0004563[which(miRWalk_MIMAT0004563$genesymbol == c("LINC02408")), c("mirnaid", "genesymbol", "bindingp", "energy", "seed", "number_of_pairings")]
+
+#-> e.g. genesymbol FAM160B1 = ENSG00000151553 https://www.uniprot.org/uniprot/Q5W0V3
+
+
+
+
+#### MIMAT0004773
+
+IDofMIMAT0004773 <-  miRNATable %>% filter(Mature1_Acc == c("MIMAT0004773"))
+
+miRWalk_MIMAT0004773 <- miRWalk_miRNA_Targets_MIMAT0004773[which(miRWalk_miRNA_Targets_MIMAT0004773$mirnaid %in% IDofMIMAT0004773$MatureID), c("mirnaid", "genesymbol", "bindingp", "energy", "seed", "number_of_pairings")]
+
+#get the gene-miRNA outliers with their miRWalk bindingsite information
+miRWalk_mir2_ENSG00000157778 <- miRWalk_MIMAT0004773[which(miRWalk_MIMAT0004773$genesymbol == c("PSMG3")), c("mirnaid", "genesymbol", "bindingp", "energy", "seed", "number_of_pairings")]
+
+```
+

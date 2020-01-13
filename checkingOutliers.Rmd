@@ -1,0 +1,69 @@
+---
+title: "checkingOutliers"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+#TODO! Delete rows in getGeneMIrnaIDsPositive1: "NA" in geneID
+
+#save gene-miRNA with strong correlation (coefficient 1-14)
+outliers <- getGeneMIrnaIDsPositive1[na.omit(getGeneMIrnaIDsPositive1$coefficient > 1.0),]
+outliers <- na.omit(outliers)
+
+#save geneIDs (unique) for plotting the expression values
+geneIDoutliers <- unique(outliers$geneID)
+
+
+#save genes with >= 100 miRNAs per gene with positive correlations
+highMiRNAratePerGene <- countPositiveGeneID[na.omit(countPositiveGeneID$n >= 100),]
+
+#save top5 genes with the greatest amount of miRNAs with positive correlations and check out their coefficients
+#TODO: highest 5% as function
+findTopFive <- 5
+top5highestMiRNAratePerGene <- countPositiveGeneID[countPositiveGeneID$n > 112,]
+
+#save their coefficients
+top5highestMiRNAratePerGene <- top5highestMiRNAratePerGene[top5highestMiRNAratePerGene$n < 121,]
+#take the Top 5 geneIDs and save all their miRNAs and coefficients
+coefficientsOfAllTop5combinations <- getGeneMIrnaIDsPositive1[getGeneMIrnaIDsPositive1$geneID %in% top5highestMiRNAratePerGene$geneID, ]
+
+#plot coefficientsOfAllTop5combinations
+boxplotTop5genesWithHighestMiRNArate <- ggplot(coefficientsOfAllTop5combinations, aes(x = pos, y = coefficient), ylim = c(0, 50)) + geom_boxplot()
+histogramTop5genesWithHighestMiRNArate <- ggplot(data=coefficientsOfAllTop5combinations, aes(coefficient)) + ylab("Nr of pos gene-miRNAs-correlations") + geom_histogram(binwidth = .1)
+
+
+
+```
+
+
+Expressionvalues of the outliers
+creating boxplots
+
+```{r}
+for (i in geneIDoutliers) {
+    expression <- cancer_gene_expr_geneIDwithoutPoint[,i]
+    expression <- data.frame(expression)
+    
+    #add column with name "expression value"
+    expression[, "expressionValue"] <- c("expressionValue")
+    
+    #every gene gets an own dataframe object with the name "outlier" + geneID
+    lapply(paste0("outlier", i), expression)
+    
+    
+    boxplot <- ggplot(expression, aes(x = expressionValue, y = expression), ylim = c(0, 50)) + geom_boxplot()
+    assign(paste0("boxplot", i), boxplot)
+    save(boxplot, file =(paste0("boxplot", i, ".pdf")))
+    
+    #plot the expression value
+    #dev.new()
+    #pdf(paste0("boxplot", i, ".pdf"))
+    #ggplot(expression, aes(x = expressionValue, y = expression), ylim = c(0, 50)) + geom_boxplot()
+    #assign(paste0("boxplot", i), boxplot)
+    #save(boxplot, file = paste0("boxplot", i, ".pdf"))
+    #dev.off()
+ }
+```
+
+

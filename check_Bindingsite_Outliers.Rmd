@@ -1,0 +1,174 @@
+---
+title: "check_Bindingsite_Outliers"
+author: "Miriam Hilger"
+date: "12 11 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(matrixStats)
+library(SPONGE)
+library(corrplot)
+library(dplyr)
+library(plyr)
+library(ggpubr) #for ggscatter
+library(tools)
+#if dplyr doesn't work:
+#install.packages("rlang", type = "source")
+library(ggplot2)
+library(data.table)
+library(biomaRt)
+library(mirbase.db)
+library(miRBaseConverter)
+library(targetscan.Hs.eg.db)
+library(foreach)
+library(doParallel)
+
+psnice(15) 
+cl <- makeForkCluster(15)
+registerDoParallel(cl)
+```
+
+
+
+get Binding Sites of the gene-miRNA-pairs
+
+1) run skript process_mir_families.R
+2) run skript process_mircode.R
+3) remove ".x" from the gene IDs -> add column "gene_id_noPoints"
+4) join miRNA-gene pairs with mircode_df
+
+```{r}
+
+mircode_df_noPoints <- sub("\\..*", "", mircode_df$gene_id)
+mircode_df$geneID <- mircode_df_noPoints
+
+names(mircode_df)[1] <-  "mirna"
+
+#join
+getGeneMIrnaBindingSites <- left_join(geneMIrnaIDsPositiveFinal, mircode_df , by = c("mirna", "geneID"))
+
+getGeneMIrnaBindingSites$char <- "numberBindingsites"
+
+```
+
+
+
+```{r}
+ggplot(na.omit(getGeneMIrnaBindingSites), aes(x=char, y=num_of_binding_sites), ylim = c(0, 50)) +ylab("Nr of bindingsites of each gene-miRNA pair") + geom_boxplot()
+
+bindingsitesOfCoeffOutlier <- getGeneMIrnaBindingSites[getGeneMIrnaBindingSites$coefficient >1, ]
+
+outlierBindingsitesGreater10 <- getGeneMIrnaBindingSites[getGeneMIrnaBindingSites$num_of_binding_sites > 10,]
+outlierBindingsitesGreater10 <- na.omit(outlierBindingsitesGreater10)
+
+outlierBindingsitesLess1 <- getGeneMIrnaBindingSites[getGeneMIrnaBindingSites$num_of_binding_sites < 1,]
+
+```
+
+
+
+```{r}
+mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+geneIDsBS <- outlierBindingsitesGreater10["geneID"]
+geneIDsCoeff <- outliers["geneID"]
+
+outlierBindingsitesGreater10_Infos <- getBM(filters="ensembl_gene_id",
+  attributes=c("ensembl_gene_id", "ensembl_gene_id_version", "gene_biotype", "chromosome_name", "strand", "start_position", "end_position"),
+  values=geneIDsBS,
+  mart=mart)
+
+
+outlierCoefficients_Infos <- getBM(filters="ensembl_gene_id",
+  attributes=c("ensembl_gene_id", "ensembl_gene_id_version", "gene_biotype", "chromosome_name", "strand", "start_position", "end_position"),
+  values=geneIDsCoeff,
+  mart=mart)
+
+
+```
+
+
+##save every gene-miRNA pair of the outliers with the highest bindingsite-numbers in the dataframe "outlierBindingsitesGreater10" in an own dataframe
+```{r}
+#get gene Expression values of the strongest pos correlations
+cancer_gene_expr_geneIDwithoutPoint <- cancer_gene_expr
+colnames(cancer_gene_expr_geneIDwithoutPoint) <- sub("\\..*", "", names(cancer_gene_expr_geneIDwithoutPoint[1,]))
+
+#to identify the gene-miRNA pairs, every pair has got its own number
+outliers$number <- c(1, 2, 3, 4, 5, 6, 7)
+
+#dataframe for gene-miRNA pair: ENSG00000182230/MIMAT0000451; filled with expression values
+expression1.BS <- cancer_gene_expr_geneIDwithoutPoint[,c("ENSG00000182230")]
+expression1.BS <- data.frame(expression1.BS)
+colnames(expression1.BS)[1] <- c("ENSG00000182230")
+expression1.BS$MIMAT0000451 <-  cancer_mir_expr[, c("MIMAT0000451")]
+
+
+#df for pair ENSG00000138829/MIMAT0000418
+expression2.BS <- cancer_gene_expr_geneIDwithoutPoint[,c("ENSG00000138829")]
+expression2.BS <- data.frame(expression2.BS)
+colnames(expression2.BS)[1] <- c("ENSG00000138829")
+expression2.BS$MIMAT0000418 <- cancer_mir_expr[, c("MIMAT0000418")]
+
+
+#df for pair ENSG00000185518/MIMAT0000451
+expression3.BS <- cancer_gene_expr_geneIDwithoutPoint[,c("ENSG00000185518")]
+expression3.BS <- data.frame(expression3.BS)
+colnames(expression3.BS)[1] <- c("ENSG00000185518")
+expression3.BS$MIMAT0000451 <- cancer_mir_expr[,c("MIMAT0000451")]
+
+
+#df 4 for pair ENSG00000197558/MIMAT0000101
+expression4.BS <- cancer_gene_expr_geneIDwithoutPoint[, c("ENSG00000197558")]
+expression4.BS <- data.frame(expression4.BS)
+colnames(expression4.BS)[1] <- c("ENSG00000197558")
+expression4.BS$MIMAT0000101 <- cancer_mir_expr[, c("MIMAT0000101")]
+
+
+#df 5 for pair ENSG00000137877/MIMAT0000101
+expression5.BS <- cancer_gene_expr_geneIDwithoutPoint[, c("ENSG00000137877")]
+expression5.BS <- data.frame(expression5.BS)
+colnames(expression5.BS)[1] <- c("ENSG00000137877")
+expression5.BS$MIMAT0000101 <- cancer_mir_expr[, c("MIMAT0000101")]
+
+
+#df 6 for pair ENSG00000119547/MIMAT0000441
+expression6.BS <- cancer_gene_expr_geneIDwithoutPoint[, c("ENSG00000119547")]
+expression6.BS <- data.frame(expression6.BS)
+colnames(expression6.BS)[1] <- c("ENSG00000119547")
+expression6.BS$MIMAT0000441 <- cancer_mir_expr[, c("MIMAT0000441")]
+
+
+#df 7 for pair ENSG00000168477/MIMAT0000263
+expression7.BS <- cancer_gene_expr_geneIDwithoutPoint[, c("ENSG00000168477")]
+expression7.BS <- data.frame(expression7.BS)
+colnames(expression7.BS)[1] <- c("ENSG00000168477")
+expression7.BS$MIMAT0000263 <- cancer_mir_expr[, c("MIMAT0000263")]
+
+
+```
+
+
+##plot the expression value of a gene-miRNA pair of the bindingsite outliers ( > 10 bs)
+
+```{r}
+
+plotExpression1.BS <- ggscatter(expression1.BS, x = "ENSG00000182230", y= "MIMAT0000451", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression2.BS <- ggscatter(expression2.BS, x = "ENSG00000138829", y= "MIMAT0000418", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression3.BS <- ggscatter(expression3.BS, x = "ENSG00000185518", y= "MIMAT0000451", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression4.BS <- ggscatter(expression4.BS, x = "ENSG00000197558", y= "MIMAT0000101", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression5.BS <- ggscatter(expression5.BS, x = "ENSG00000137877", y= "MIMAT0000101", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression6.BS <- ggscatter(expression6.BS, x = "ENSG00000119547", y= "MIMAT0000441", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+plotExpression7.BS <- ggscatter(expression7.BS, x = "ENSG00000168477", y= "MIMAT0000263", shape = 1, add = "reg.line", add.params = list(color = "blue"),)
+
+```
+
+
+
+```{r}
+stopCluster(cl)
+```

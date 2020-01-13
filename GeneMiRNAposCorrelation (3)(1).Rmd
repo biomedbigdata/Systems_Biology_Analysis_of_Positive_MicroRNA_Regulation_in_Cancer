@@ -1,0 +1,447 @@
+---
+title: "GeneMiRNAposCorrelation"
+author: "Miriam Hilger"
+date: "9 10 2019"
+output: html_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r libraries}
+library(matrixStats)
+library(SPONGE)
+library(corrplot)
+library(dplyr)
+library(plyr)
+library(ggpubr) #for ggscatter
+library(tools)
+#if dplyr doesn't work:
+#install.packages("rlang", type = "source")
+library(ggplot2)
+library(data.table)
+library(biomaRt)
+library(mirbase.db)
+library(miRBaseConverter)
+library(targetscan.Hs.eg.db)
+library(foreach)
+library(doParallel)
+
+psnice(15) 
+cl <- makeForkCluster(15)
+registerDoParallel(cl)
+```
+
+Die Daten sind schon log 2 normalisiert, das merkt man daran, dass es negative values gibt. 
+Man kann aber nicht negativ reads zählen.
+Es wird ein Varianzfiler benötigt, da manche Gene nicht detektiert sind und den Minimalvalue -9 haben,... 
+Diese Gene können nicht skaliert werden weil man sonst durch 0 teilen würde
+Normalisierung der Genexpressionsvektoren auf die Normalverteilung, so dass alle einen mean 0 und eine Standardabweichung 1 haben. Das erreicht man durch subtrahieren vom mean und teilen durch die SD.
+Quantile von 0.15
+
+```{r}
+load("~/breast invasive carcinoma.RData")
+
+cancer_gene_expression <- cancer_gene_expr[,-which(colVars(cancer_gene_expr) < (quantile(colVars(cancer_gene_expr), 0.15)))]
+cancer_gene_expr_scaled <- scale(cancer_gene_expression)
+colnames(cancer_gene_expr_scaled) <- substr(colnames(cancer_gene_expr_scaled), 1, 15)
+cancer_mir_expression <- cancer_mir_expr[,-which(colVars(cancer_mir_expr) < (quantile(colVars(cancer_mir_expr), 0.15)))]
+cancer_mir_expr_scaled <- scale(cancer_mir_expression)
+
+load("~/predictedTargetsPos.RData")
+#num vector of the content of pos_correlation, but shuffled -> to create a second matrix for the negativ sponge A run 
+#sample(dataContent, size)
+shuffledPredictedTargets <- sample(predictedTargetsPos, (nrow(predictedTargetsPos)*ncol(predictedTargetsPos)))
+
+#copy of pos_correlation to create the second matrix with the values of pos_correlation, but in another order
+predictedTargetsNeg <- predictedTargetsPos
+
+#erstelle coefficient.threshold = randomCorrelation
+counter <- 0
+for (i in 1:length(shuffledPredictedTargets)) {
+     temp <- i%%(ncol(predictedTargetsPos))
+     if(temp == 0 && i!=0){
+         counter = counter+1 
+     }
+     predictedTargetsNeg[counter+1:temp+1] = shuffledPredictedTargets[i]
+ }
+
+
+```
+
+
+Durchlauf "Sponge A"
+
+```{r}
+genes_miRNA_candidates_posFinal1.1 <- sponge_gene_miRNA_interaction_filter(
+     gene_expr = cancer_gene_expr_scaled,
+     mir_expr = cancer_mir_expr_scaled,
+     mir_predicted_targets = predictedTargetsPos, 
+     coefficient.threshold = 0.15,
+     coefficient.direction = ">",
+     F.test = FALSE)
+
+genes_miRNA_candidates_negFinal1.0 <- sponge_gene_miRNA_interaction_filter(
+     gene_expr = cancer_gene_expr_scaled,
+     mir_expr = cancer_mir_expr_scaled,
+     mir_predicted_targets = predictedTargetsNeg, 
+     F.test = FALSE)
+
+```
+
+
+```{r}
+genes_miRNA_candidates_posFinal1.2 <- sponge_gene_miRNA_interaction_filter(
+     gene_expr = cancer_gene_expr_scaled,
+     mir_expr = cancer_mir_expr_scaled,
+     mir_predicted_targets = predictedTargetsPos, 
+     coefficient.threshold = 0.16,
+     coefficient.direction = ">",
+     F.test = FALSE)
+
+genes_miRNA_candidates_posFinal1.2 <- bind_rows(genes_miRNA_candidates_posFinal1.2, .id = "geneID")
+
+genes_miRNA_candidates_posFinal1.3 <- sponge_gene_miRNA_interaction_filter(
+     gene_expr = cancer_gene_expr_scaled,
+     mir_expr = cancer_mir_expr_scaled,
+     mir_predicted_targets = predictedTargetsPos, 
+     coefficient.threshold = 0.17,
+     coefficient.direction = ">",
+     F.test = FALSE)
+
+genes_miRNA_candidates_posFinal1.3 <- bind_rows(genes_miRNA_candidates_posFinal1.3, .id = "geneID")
+
+genes_miRNA_candidates_posFinal1.4 <- sponge_gene_miRNA_interaction_filter(
+     gene_expr = cancer_gene_expr_scaled,
+     mir_expr = cancer_mir_expr_scaled,
+     mir_predicted_targets = predictedTargetsPos, 
+     coefficient.threshold = 0.18,
+     coefficient.direction = ">",
+     F.test = FALSE)
+
+genes_miRNA_candidates_posFinal1.4 <- bind_rows(genes_miRNA_candidates_posFinal1.4, .id = "geneID")
+
+genes_miRNA_candidates_posFinal1.5 <- sponge_gene_miRNA_interaction_filter(
+     gene_expr = cancer_gene_expr_scaled,
+     mir_expr = cancer_mir_expr_scaled,
+     mir_predicted_targets = predictedTargetsPos, 
+     coefficient.threshold = 0.19,
+     coefficient.direction = ">",
+     F.test = FALSE)
+
+genes_miRNA_candidates_posFinal1.5 <- bind_rows(genes_miRNA_candidates_posFinal1.5, .id = "geneID")
+
+genes_miRNA_candidates_posFinal1.6 <- sponge_gene_miRNA_interaction_filter(
+     gene_expr = cancer_gene_expr_scaled,
+     mir_expr = cancer_mir_expr_scaled,
+     mir_predicted_targets = predictedTargetsPos, 
+     coefficient.threshold = 0.2,
+     coefficient.direction = ">",
+     F.test = FALSE)
+
+genes_miRNA_candidates_posFinal1.6 <- bind_rows(genes_miRNA_candidates_posFinal1.6, .id = "geneID")
+
+```
+
+
+das ganze in ein Dataframe packen, joinen und über GeneID mappen:
+mit bind_rows konnte man eine extra Spalte durch .id=... hinzufügen und dort die geneID hineingeben. Eine extra ID wird in der 1. Spalte eingefügt, damit bei den geneID's nicht ENSG00000000460\textbf{.4} rauskommt, sondern ohne ".4"
+
+
+```{r}
+genes_miRNA_candidates_posFinal1.1 <- bind_rows(genes_miRNA_candidates_posFinal1.1, .id = "geneID")
+genes_miRNA_candidates_posFinal1.1 <- na.omit(genes_miRNA_candidates_posFinal1.1)
+genes_miRNA_candidates_negFinal1.0 <- bind_rows(genes_miRNA_candidates_negFinal1.0, .id = "geneID")
+
+genes_miRNA_candidates_negFinal1.1 <- bind_rows(genes_miRNA_candidates_negFinal1.1, .id = "geneID")
+```
+
+
+Plotte positive Korrelation und filtere die "schwachen Korrelationen" heraus.
+Verwerfe alles < 0.05 
+
+```{r}
+getGeneMIrnaIDsPositive2 <- genes_miRNA_candidates_posFinal1.1[genes_miRNA_candidates_posFinal1.1$coefficient > 0.05, ]
+geneID <- getGeneMIrnaIDsPositive2$geneID
+```
+
+
+um die Anzahl der pos. und neg. miRNAs in einem Dataframe gegenüber zu stellen je Gen muss der Join verändert werden:
+
+
+```{r}
+countPositiveGeneID <- count(geneID)
+countPositiveGeneID$pos <- c("pos")
+
+geneIDneg <- getGeneMIrnaIDsNegative1$geneID
+countNegativeGeneID <- count(geneIDneg)
+dataframeJOINgeneID <- dplyr::full_join(getGeneMIrnaIDsPositive2, getGeneMIrnaIDsNegative1, by = c("geneID","mirna"),suffix = c(".pos", ".neg"))
+joined.CountPosNeg <- dplyr::full_join(countPositiveGeneID, countNegativeGeneID, by = c("x"),suffix = c(".pos", ".neg"))
+```
+
+
+Hole mit Hilfe von biomaRt die ensembl_gene_id, start- und endposition und strand Informationen der Gene.
+-> Das gleiche für die miRNAs 
+
+
+```{r}
+#get the start- and endpositions from all gene-ids
+mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+#listFilters(mart)
+#listAttributes(mart)
+gene_ids <- getGeneMIrnaIDsPositive2["geneID"]
+
+genePositionsCoeffGreater0.05 <- getBM(filters="ensembl_gene_id",
+  attributes=c("ensembl_gene_id", "chromosome_name", "strand", "start_position", "end_position"),
+  values=gene_ids,
+  mart=mart)
+
+#conversion miRBase Accession and miRNA Name which is needed to get the start- and endpositions
+#join the Accessionnr
+
+mirnaID1 <- miRNATable[which(as.character(miRNATable$Mature1_Acc) %in% getGeneMIrnaIDsPositive2$mirna),c("ID","Mature1_Acc","Mature2_Acc")]
+mirnaID2 <- miRNATable[which(as.character(miRNATable$Mature2_Acc) %in% getGeneMIrnaIDsPositive2$mirna),c("ID","Mature1_Acc","Mature2_Acc")]
+joinMirna.ID1.ID2 <- dplyr::full_join(mirnaID1, mirnaID2, by = c("ID","Mature1_Acc", "Mature2_Acc"))
+
+#result = miRNA_AccessionToName(getGeneMIrnaIDsPositive2$mirna)
+
+#get the start- and endpositions from all mirna-ids
+mirnaPositionsWithID <- getBM(attributes = c('mirbase_id',
+                                       'chromosome_name',
+                                       'strand',
+                                       'start_position',
+                                       'end_position'),
+                            filters = 'mirbase_id', 
+                            values = joinMirna.ID1.ID2["ID"],
+                            mart = mart)
+
+
+
+#genePositionsCoeffGreater0.05 <- lapply(genePositions, na.omit)
+#mirnaPositionsWithID <- lapply(mirnaPositions, na.omit)
+```
+
+
+Finde Überlappungen zwischen Genen und miRNAs und filtere diese heraus -> da gleicher Genlokus = offensichtliche Korrelation
+Interessant sind die miRNAs nahe der Bindestellen von Genen.
+
+```{r}
+names(genePositionsCoeffGreater0.05)<- c("ensembl_gene_id","chromosome_name", "strand", "start","end")
+names(mirnaPositionsWithID) <- c("mirbase_id", "chromosome_name", "strand", "start","end")
+
+#foverlaps requires data.tables as input -> without entrez_ID
+require(data.table)
+setDT(genePositionsCoeffGreater0.05)
+setDT(mirnaPositionsWithID)
+
+setkey(genePositionsCoeffGreater0.05, chromosome_name, strand, start, end)
+setkey(mirnaPositionsWithID, chromosome_name, strand, start, end)
+
+OverlapsAllCoeffGreater0.05 <- foverlaps(mirnaPositionsWithID, genePositionsCoeffGreater0.05, by.x = c("chromosome_name", "strand","start", "end"), by.y = c("chromosome_name", "strand","start", "end"), nomatch = 0, type = "within")
+OverlapsGreater0.05Unique <- unique(OverlapsAllCoeffGreater0.05)
+
+#convert the mirbase_id to mature accesstion number, to remove alle Overlaps from getGeneMIrnaIDsPositive2
+#miRNATable was downloaded from mirbase.org
+getAccNb <- joinMirna.ID1.ID2[which(as.character(joinMirna.ID1.ID2$ID) %in% OverlapsGreater0.05Unique$mirbase_id),c("ID","Mature1_Acc","Mature2_Acc")]
+
+#join the mature accession nr from getAccNb to the Overlaps
+OverlapsUniqueDT <- data.table(OverlapsGreater0.05Unique, key = "mirbase_id")
+getAccNbDT <- data.table(getAccNb, key = "ID")
+
+#concentration on Mature1_Acc
+OverlapsGeneIDaccNr1 <- OverlapsUniqueDT[getAccNbDT]
+names(OverlapsGeneIDaccNr1)[3] <-  "geneID"
+names(OverlapsGeneIDaccNr1)[9] <-  "mirna"
+
+OverlapsGeneIDaccNr1 <- data.frame(OverlapsGeneIDaccNr1)
+OverlapsGeneIDaccNr1[] <- lapply(OverlapsGeneIDaccNr1, as.character)
+
+#concentration on Mature2_Acc, because I need both gene-miRNA pairs
+OverlapsGeneIDaccNr2 <- OverlapsUniqueDT[getAccNbDT]
+names(OverlapsGeneIDaccNr2)[3] <-  "geneID"
+names(OverlapsGeneIDaccNr2)[10] <-  "mirna"
+
+OverlapsGeneIDaccNr2 <- data.frame(OverlapsGeneIDaccNr2)
+OverlapsGeneIDaccNr2[] <- lapply(OverlapsGeneIDaccNr2, as.character)
+
+
+#remove these gene-mirna pairs from getGeneMIrnaIDsPositive2
+# 1. save all gene-miRNA pairs which are noch matching in getGeneMIrnaIDsPositive2 and the overlaps from Mature1_Acc
+geneMIrnaIDsPositiveFinalCurrent <- anti_join(getGeneMIrnaIDsPositive2, OverlapsGeneIDaccNr1, by = c("geneID", "mirna")) #gene-Mature1_Acc pair
+# 2. with the above result geneMIrnaIDsPositiveFinal1, repeat the process with the Overlaps from Mature2_Acc
+geneMIrnaIDsPositiveFinal <- anti_join(geneMIrnaIDsPositiveFinalCurrent, OverlapsGeneIDaccNr2, by = c("geneID", "mirna")) #gene-Mature2_Acc pair
+
+
+```
+
+
+
+##TODO: plot the distribution of the gene-miRNA list with the content before removing the overlaps and afterwards 
+##      calculate the % of gene-miRNA pairs which are on the same gene locus
+
+```{r}
+
+
+```
+
+RESULTS_________________________________________________________________
+
+
+```{r}
+#nr of microRNAs which one gene has got on average
+mean(countPositiveGeneID[["n"]])
+
+#the max and min coefficient
+max(geneMIrnaIDsPositiveFinal$coefficient, na.rm = TRUE)
+min(geneMIrnaIDsPositiveFinal$coefficient, na.rm = TRUE)
+
+#save gene-miRNA with strong correlation (coefficient 1-14)
+outliers <- geneMIrnaIDsPositiveFinal[na.omit(geneMIrnaIDsPositiveFinal$coefficient > 1.0),]
+
+#save genes with >= 100 miRNAs per gene with positive correlations
+highMiRNAratePerGene <- countPositiveGeneID[countPositiveGeneID$freq >= 7,]
+
+#save top5 genes with the greatest amount of miRNAs with positive correlations and check out their coefficients
+#TODO: highest 5% as FUNCTION!!
+top2highestMiRNAratePerGene <- countPositiveGeneID[countPositiveGeneID$freq > 7,]
+
+#save their coefficients
+#top5highestMiRNAratePerGene <- top5highestMiRNAratePerGene[top5highestMiRNAratePerGene$n < 121,]
+
+#take the Top 5 geneIDs and save all their miRNAs and coefficients
+coefficientsOfAllTop2combinations <- geneMIrnaIDsPositiveFinal[geneMIrnaIDsPositiveFinal$geneID %in% top2highestMiRNAratePerGene$x, ]
+```
+
+
+
+## Including Plots
+
+1. Plots of the number of microRNAs which one gene has
+1.1 Boxplot / Violinplot / Densityplot
+
+
+```{r, echo=FALSE}
+
+miRNAsPerGeneBoxplot <- ggplot(na.omit(countPositiveGeneID), aes(x=pos, y=n), ylim = c(0, 50)) +ylab("Nr Genes with same Nr of miRNAs") + geom_boxplot()
+
+miRNAsPerGeneViolin <- ggplot(countPositiveGeneID, aes(x=pos, y=freq)) +ylab("Nr Genes with same Nr of miRNAs") + geom_violin()
+
+dfCoeff <- data.frame(dataframeJOINgeneID$coefficient.pos, dataframeJOINgeneID$coefficient.neg)
+dfs <- stack(dfCoeff)
+positiveVsNegativeDensity <- ggplot(dfs, aes(x=values)) + geom_density(aes(group=ind, colour=ind))
+
+```
+
+1.2 Histogram
+##TODO: zoom!!!!!!!
+
+```{r}
+ggplot(data=na.omit(countPositiveGeneID), aes(freq)) + xlab("Nr of miRNAs of one gene") + ylab("Nr Genes with same Nr of miRNAs") + geom_histogram(binwidth = .4)
+```
+
+2. plots of the positive correlation coefficients
+2.1 Boxplot
+
+```{r}
+geneMIrnaIDsPositiveFinal$pos <- c("pos")
+ggplot(na.omit(geneMIrnaIDsPositiveFinal), aes(x = pos, y = coefficient), ylim = c(0, 50)) + geom_boxplot()
+
+positiveCorrelationCoefficientsViolin <- ggplot(geneMIrnaIDsPositiveFinal, aes(x=pos, y=coefficient),ylim = c(0, 50)) +ylab("positive correlation coefficients") + geom_violin()
+
+
+```
+
+2.2 Histogram
+
+```{r}
+ggplot(data=na.omit(geneMIrnaIDsPositiveFinal), aes(coefficient)) + ylab("Nr of pos gene-miRNAs-correlations") + geom_histogram(binwidth = .1)
+```
+
+3. Boxplot top5 genes with the greatest amount of miRNAs with positive correlations
+
+```{r}
+coefficientsOfAllTop2combinations$pos <- c("pos")
+ggplot(coefficientsOfAllTop2combinations, aes(x = pos, y = coefficient), ylim = c(0, 50)) + geom_boxplot()
+
+top5GenesWithHighestNrOfMIrnas <- ggplot(coefficientsOfAllTop2combinations, aes(x=pos, y=coefficient)) +ylab("Top 5 genes with the greatest amount of miRNAs with positive correlations") + geom_violin()
+
+```
+
+
+
+## TODO: Check Expressionswerte
+
+```{r}
+#get gene Expression values of the strongest pos correlations
+# -> outliers and top5highestMiRNAratePerGene
+
+cancer_gene_expr_geneIDwithoutPoint <- cancer_gene_expr
+colnames(cancer_gene_expr_geneIDwithoutPoint) <- sub("\\..*", "", names(cancer_gene_expr_geneIDwithoutPoint[1,]))
+
+#nehme geneID, suche in cancer_..._Point danach und ziehe Expr.werte raus, mache für jede geneID einen eigenen Boxplot
+#save geneIDs (unique) for plotting the expression values
+geneIDoutliers <- unique(outliers$geneID)
+
+for (i in geneIDoutliers) {
+    expression <- cancer_gene_expr_geneIDwithoutPoint[,i]
+    expression <- data.frame(expression)
+    
+    #add column with name "expression value"
+    expression[, "expressionValue"] <- c("expressionValue")
+    
+    #every gene gets an own dataframe object with the name "outlier" + geneID
+    lapply(paste0("outlier", i), expression)
+    
+    #plot the expression value
+    boxplot <- ggplot(expression, aes(x = expressionValue, y = expression), ylim = c(0, 50)) + geom_boxplot()
+    assign(paste0("boxplot", i), boxplot)
+    save(boxplot, file =(paste0("boxplot", i, ".pdf")))
+}
+
+
+```
+
+get Binding Sites of the gene-miRNA-pairs
+
+1) run skript process_mir_families.R
+2) run skript process_mircode.R
+3) remove ".x" from the gene IDs -> add column "gene_id_noPoints"
+4) join miRNA-gene pairs with mircode_df
+
+```{r}
+
+mircode_df_noPoints <- sub("\\..*", "", mircode_df$gene_id)
+mircode_df$geneID <- mircode_df_noPoints
+
+names(mircode_df)[1] <-  "mirna"
+
+#join
+getGeneMIrnaBindingSites <- left_join(geneMIrnaIDsPositiveFinal, mircode_df , by = c("mirna", "geneID"))
+
+getGeneMIrnaBindingSites$char <- "numberBindingsites"
+
+```
+
+#4. plot #bindingsites
+
+##TODO save number of bindingsites of the strongest outliers
+
+```{r}
+ggplot(na.omit(getGeneMIrnaBindingSites), aes(x=char, y=num_of_binding_sites), ylim = c(0, 50)) +ylab("Nr of bindingsites of each gene-miRNA pair") + geom_boxplot()
+
+bindingsitesOfCoeffOutlier <- getGeneMIrnaBindingSites[getGeneMIrnaBindingSites$coefficient >1, ]
+
+outlierBindingsitesGreater10 <- getGeneMIrnaBindingSites[getGeneMIrnaBindingSites$num_of_binding_sites > 10,]
+outlierBindingsitesGreater10 <- na.omit(outlierBindingsitesGreater10)
+
+outlierBindingsitesLess1 <- getGeneMIrnaBindingSites[getGeneMIrnaBindingSites$num_of_binding_sites < 1,]
+
+```
+
+
+```{r}
+stopCluster(cl)
+```
+

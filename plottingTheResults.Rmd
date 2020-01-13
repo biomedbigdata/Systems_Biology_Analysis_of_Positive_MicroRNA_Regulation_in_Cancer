@@ -1,0 +1,68 @@
+---
+title: "nrGenesPosCorrelation"
+output: html_document
+---
+
+## Including Plots
+
+```{r}
+library(beeswarm)
+library(matrixStats)
+library(SPONGE)
+library(corrplot)
+library(dplyr)
+library(tools)
+#if dplyr doesn't work:
+#install.packages("rlang", type = "source")
+library(ggplot2)
+#library(plotly)
+#library(devtools)
+#library(easyGgplot2)
+library(data.table)
+library(biomaRt)
+library(mirbase.db)
+library(miRBaseConverter)
+library(targetscan.Hs.eg.db)
+library(foreach)
+library(doParallel)
+
+psnice(15) 
+cl <- makeForkCluster(15)
+registerDoParallel(cl)
+```
+
+
+Boxplot of the positive correlation
+
+```{r pressure, echo=FALSE}
+
+```
+
+
+```{r pressure, echo=FALSE}
+#nr of microRNAs which one gene has got on average
+nrMIrnasOf1GeneOnAverage <- mean(countPositiveGeneID[["n"]])
+
+#the max and min coefficient
+maximumCoefficient <- max(getGeneMIrnaIDsPositive1$coefficient, na.rm = TRUE)
+minimumCoefficient <- min(getGeneMIrnaIDsPositive1$coefficient, na.rm = TRUE)
+
+#Plots of the number of microRNAs which one gene has
+boxplotNrOfMicroRNAsOfOneGene <- ggplot(na.omit(countPositiveGeneID), aes(x=pos, y=n), ylim = c(0, 50)) +ylab("Nr Genes with same Nr of miRNAs") + geom_boxplot()
+histogramNrOfMicroRNAsOfOneGene <- ggplot(data=na.omit(countPositiveGeneID), aes(n)) + xlab("Nr of miRNAs of one gene") + ylab("Nr Genes with same Nr of miRNAs") + geom_histogram(binwidth = .4)
+
+#beeswarmplotOfposCorr <- beeswarm(na.omit(countPositiveGeneID$n))
+
+#plots of the positive correlation coefficients
+boxplotCoefficients <- ggplot(na.omit(getGeneMIrnaIDsPositive1), aes(x = pos, y = coefficient), ylim = c(0, 50)) + geom_boxplot()
+histogramCoefficients <- ggplot(data=na.omit(getGeneMIrnaIDsPositive1), aes(coefficient)) + ylab("Nr of pos gene-miRNAs-correlations") + geom_histogram(binwidth = .1)
+
+
+```
+
+
+```{r}
+stopCluster(cl)
+
+```
+
